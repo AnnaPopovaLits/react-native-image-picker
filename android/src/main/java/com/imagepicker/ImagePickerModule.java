@@ -1,7 +1,6 @@
 package com.imagepicker;
 
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -23,10 +22,10 @@ import static com.imagepicker.Utils.*;
 public class ImagePickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
     static final String NAME = "ImagePickerManager";
 
-    // Public to let consuming apps hook into the image picker response
-    public static final int REQUEST_LAUNCH_IMAGE_CAPTURE = 13001;
-    public static final int REQUEST_LAUNCH_VIDEO_CAPTURE = 13002;
-    public static final int REQUEST_LAUNCH_LIBRARY = 13003;
+    static final int REQUEST_LAUNCH_IMAGE_CAPTURE = 13001;
+    static final int REQUEST_LAUNCH_IMAGE_LIBRARY = 13002;
+    static final int REQUEST_LAUNCH_VIDEO_LIBRARY = 13003;
+    static final int REQUEST_LAUNCH_VIDEO_CAPTURE = 13004;
 
     private Uri fileUri;
 
@@ -78,7 +77,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         File file;
         Intent cameraIntent;
 
-        if (this.options.mediaType.equals(mediaTypeVideo)) {
+        if (this.options.pickVideo) {
             requestCode = REQUEST_LAUNCH_VIDEO_CAPTURE;
             cameraIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
             cameraIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, this.options.videoQuality);
@@ -102,12 +101,12 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraCaptureURI);
         cameraIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-        try {
-            currentActivity.startActivityForResult(cameraIntent, requestCode);
-        } catch (ActivityNotFoundException e) {
-            callback.invoke(getErrorMap(errOthers, e.getMessage()));
-            this.callback = null;
+        if (cameraIntent.resolveActivity(reactContext.getPackageManager()) == null) {
+            callback.invoke(getErrorMap(errOthers, "Activity error"));
+            return;
         }
+
+        currentActivity.startActivityForResult(cameraIntent, requestCode);
     }
 
     @ReactMethod
@@ -123,25 +122,22 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
         int requestCode;
         Intent libraryIntent;
-        requestCode = REQUEST_LAUNCH_LIBRARY;
-        if (this.options.mediaType.equals(mediaTypeVideo)) {
+        if (this.options.pickVideo) {
+            requestCode = REQUEST_LAUNCH_VIDEO_LIBRARY;
             libraryIntent = new Intent(Intent.ACTION_PICK);
             libraryIntent.setType("video/*");
-        } else if (this.options.mediaType.equals(mediaTypePhoto)) {
+        } else {
+            requestCode = REQUEST_LAUNCH_IMAGE_LIBRARY;
             libraryIntent = new Intent(Intent.ACTION_PICK);
             libraryIntent.setType("image/*");
-        } else {
-            libraryIntent = new Intent(Intent.ACTION_GET_CONTENT);
-            libraryIntent.setType("*/*");
-            libraryIntent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
-            libraryIntent.addCategory(Intent.CATEGORY_OPENABLE);
         }
-        try {
-            currentActivity.startActivityForResult(Intent.createChooser(libraryIntent, null), requestCode);
-        } catch (ActivityNotFoundException e) {
-            callback.invoke(getErrorMap(errOthers, e.getMessage()));
-            this.callback = null;
+
+        if (libraryIntent.resolveActivity(reactContext.getPackageManager()) == null) {
+            callback.invoke(getErrorMap(errOthers, "Activity error"));
+            return;
         }
+
+        currentActivity.startActivityForResult(Intent.createChooser(libraryIntent, null), requestCode);
     }
 
     void onImageObtained(Uri uri) {
@@ -156,8 +152,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
     @Override
     public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
 
-        // onActivityResult is called even when ActivityNotFoundException occurs
-        if (!isValidRequestCode(requestCode) || (this.callback == null)) {
+        if (!isValidRequestCode(requestCode)) {
             return;
         }
 
@@ -177,16 +172,12 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                 onImageObtained(fileUri);
                 break;
 
-            case REQUEST_LAUNCH_LIBRARY:
-                Uri uri = data.getData();
-                if (isImageType(uri, reactContext)) {
-                    onImageObtained(getAppSpecificStorageUri(uri, reactContext));
-                } else if (isVideoType(uri, reactContext)) {
-                    onVideoObtained(uri);
-                } else {
-                    // This could happen in rarest case when mediaType is mixed and the user selects some other file type like contacts etc, ideally these file options should not be shown by android
-                    callback.invoke(getErrorMap(errOthers, "Unsupported file type"));
-                }
+            case REQUEST_LAUNCH_IMAGE_LIBRARY:
+                onImageObtained(getAppSpecificStorageUri(data.getData(), reactContext));
+                break;
+
+            case REQUEST_LAUNCH_VIDEO_LIBRARY:
+                onVideoObtained(data.getData());
                 break;
 
             case REQUEST_LAUNCH_VIDEO_CAPTURE:

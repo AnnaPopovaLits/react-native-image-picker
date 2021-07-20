@@ -11,7 +11,6 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.camera2.CameraCharacteristics;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
@@ -46,9 +45,6 @@ public class Utils {
     public static String errPermission = "permission";
     public static String errOthers = "others";
 
-    public static String mediaTypePhoto = "photo";
-    public static String mediaTypeVideo = "video";
-
     public static String cameraPermissionDescription = "This library does not require Manifest.permission.CAMERA, if you add this permission in manifest then you have to obtain the same.";
 
     public static File createFile(Context reactContext, String fileType) {
@@ -80,11 +76,9 @@ public class Utils {
 
         if (mediaType.equals("video")) {
             fileDetails.put(MediaStore.Video.Media.DISPLAY_NAME, UUID.randomUUID().toString());
-            fileDetails.put(MediaStore.Video.Media.MIME_TYPE, resolver.getType(uri));
             mediaStoreUri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, fileDetails);
         } else {
             fileDetails.put(MediaStore.Images.Media.DISPLAY_NAME, UUID.randomUUID().toString());
-            fileDetails.put(MediaStore.Images.Media.MIME_TYPE, resolver.getType(uri));
             mediaStoreUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, fileDetails);
         }
 
@@ -257,14 +251,6 @@ public class Utils {
         }
     }
 
-    static int getDuration(Uri uri, Context context) {
-        MediaMetadataRetriever m = new MediaMetadataRetriever();
-        m.setDataSource(context, uri);
-        int duration = Math.round(Float.parseFloat(m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION))) / 1000;
-        m.release();
-        return duration;
-    }
-
     static boolean shouldResizeImage(int origWidth, int origHeight, Options options) {
         if ((options.maxWidth == 0 || options.maxHeight == 0) && options.quality == 100) {
             return false;
@@ -308,8 +294,9 @@ public class Utils {
     static boolean isValidRequestCode(int requestCode) {
         switch (requestCode) {
             case REQUEST_LAUNCH_IMAGE_CAPTURE:
+            case REQUEST_LAUNCH_IMAGE_LIBRARY:
             case REQUEST_LAUNCH_VIDEO_CAPTURE:
-            case REQUEST_LAUNCH_LIBRARY: return true;
+            case REQUEST_LAUNCH_VIDEO_LIBRARY: return true;
             default: return false;
         }
     }
@@ -339,16 +326,6 @@ public class Utils {
         }
     }
 
-    static boolean isImageType(Uri uri, Context context) {
-        ContentResolver contentResolver = context.getContentResolver();
-        return contentResolver.getType(uri).contains("image/");
-    }
-
-    static boolean isVideoType(Uri uri, Context context) {
-        ContentResolver contentResolver = context.getContentResolver();
-        return contentResolver.getType(uri).contains("video/");
-    }
-
     static ReadableMap getResponseMap(Uri uri, Options options, Context context) {
         String fileName = uri.getLastPathSegment();
         int[] dimensions = getImageDimensions(uri, context);
@@ -369,10 +346,10 @@ public class Utils {
 
     static ReadableMap getVideoResponseMap(Uri uri, Context context) {
         String fileName = uri.getLastPathSegment();
+
         WritableMap map = Arguments.createMap();
         map.putString("uri", uri.toString());
         map.putDouble("fileSize", getFileSize(uri, context));
-        map.putInt("duration", getDuration(uri, context));
         map.putString("fileName", fileName);
         return map;
     }
