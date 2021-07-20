@@ -1,7 +1,6 @@
 export type Callback = (response: ImagePickerResponse) => any;
 
 export interface ImageLibraryOptions {
-  selectionLimit?: number;
   mediaType: MediaType;
   maxWidth?: number;
   maxHeight?: number;
@@ -10,14 +9,16 @@ export interface ImageLibraryOptions {
   includeBase64?: boolean;
 }
 
-export interface CameraOptions
-  extends Omit<ImageLibraryOptions, 'selectionLimit'> {
+export interface CameraOptions extends ImageLibraryOptions {
   durationLimit?: number;
   saveToPhotos?: boolean;
   cameraType?: CameraType;
 }
 
-export interface Asset {
+export interface ImagePickerResponse {
+  didCancel?: boolean;
+  errorCode?: ErrorCode;
+  errorMessage?: string;
   base64?: string;
   uri?: string;
   width?: number;
@@ -26,13 +27,6 @@ export interface Asset {
   type?: string; //TODO
   fileName?: string;
   duration?: number;
-}
-
-export interface ImagePickerResponse {
-  didCancel?: boolean;
-  errorCode?: ErrorCode;
-  errorMessage?: string;
-  assets?: Asset[];
 }
 
 export type PhotoQuality =
